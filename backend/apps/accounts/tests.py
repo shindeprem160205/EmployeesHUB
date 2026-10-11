@@ -1,7 +1,7 @@
 
 from rest_framework import status
 from rest_framework.test import APITestCase
-from apps.accounts.models import User
+from apps.accounts.models import Employee, User
 
 
 class EmployeeAPITests(APITestCase):
@@ -116,3 +116,37 @@ class EmployeeAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_employee_uses_authenticated_user(self):
+        hr_user = User.objects.create_user(
+            username="hr_security_test",
+            password="TestPass123!",
+            role="HR",
+        )
+        other_user = User.objects.create_user(
+            username="other_security_test",
+            password="TestPass123!",
+            role="EMPLOYEE",
+        )
+        self.client.force_authenticate(user=hr_user)
+
+        payload = {
+            "employee_id": "EMP_SECURITY_001",
+            "phone_number": "9876543210",
+            "department": "IT",
+            "designation": "Software Engineer",
+            "joining_date": "2026-10-11",
+            "employment_status": "ACTIVE",
+            "user": other_user.id,
+        }
+
+        response = self.client.post(
+            "/api/v1/employees/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        employee = Employee.objects.get(employee_id="EMP_SECURITY_001")
+        self.assertEqual(employee.user_id, hr_user.id)
+        self.assertNotEqual(employee.user_id, other_user.id)
